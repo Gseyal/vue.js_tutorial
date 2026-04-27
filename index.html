@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Vue Bit by Bit 🟢</title>
 
-  <!-- Vue 3 -->
-  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <!-- Vue 3 (pinned to a stable minor so no unexpected breaking changes) -->
+  <script src="https://unpkg.com/vue@3.4.21/dist/vue.global.prod.js"></script>
 
   <!-- Bootstrap 5.3 -->
   <link
@@ -427,7 +427,7 @@
             <button
               class="btn btn-primary"
               @click="submitQuiz"
-              :disabled="quizAnswers.some(a => a === null || a === undefined)"
+              :disabled="quizAnswers.some(a => a == null)"
             >Submit Answers</button>
           </div>
 
@@ -647,8 +647,9 @@
           await navigator.clipboard.writeText(this.editorCode);
           this.copied = true;
           setTimeout(() => { this.copied = false; }, 2000);
-        } catch {
+        } catch (err) {
           // Clipboard API unavailable (e.g. file:// without permissions)
+          console.warn('Copy to clipboard failed:', err);
         }
       },
 
@@ -694,6 +695,15 @@
       handleKeydown(e) {
         if (e.altKey && e.key === 'ArrowRight') this.nextLesson();
         if (e.altKey && e.key === 'ArrowLeft')  this.prevLesson();
+      },
+
+      // ── URL hash helpers ───────────────────────────────────────
+      // Parses #lesson-N from the current URL and navigates to that lesson.
+      navigateToHash() {
+        const m   = window.location.hash.match(/^#lesson-(\d+)$/);
+        const idx = m ? parseInt(m[1], 10) - 1 : 0;
+        const target = idx >= 0 && idx < this.lessons.length ? idx : 0;
+        if (target !== this.activeLesson) this.selectLesson(target);
       }
     },
 
@@ -702,21 +712,11 @@
       this._keydownHandler = this.handleKeydown.bind(this);
       window.addEventListener('keydown', this._keydownHandler);
 
-      // Deep-link via URL hash: #lesson-3 opens lesson 3
-      const match = window.location.hash.match(/^#lesson-(\d+)$/);
-      const idx   = match ? parseInt(match[1], 10) - 1 : 0;
-      this.selectLesson(idx >= 0 && idx < this.lessons.length ? idx : 0);
+      // Deep-link via URL hash on initial load
+      this.navigateToHash();
 
-      // Keep hash in sync when user navigates with browser back/forward
-      window.addEventListener('hashchange', () => {
-        const m = window.location.hash.match(/^#lesson-(\d+)$/);
-        if (m) {
-          const i = parseInt(m[1], 10) - 1;
-          if (i !== this.activeLesson && i >= 0 && i < this.lessons.length) {
-            this.selectLesson(i);
-          }
-        }
-      });
+      // Keep in sync when user navigates with browser back/forward
+      window.addEventListener('hashchange', this.navigateToHash.bind(this));
     },
 
     beforeUnmount() {
