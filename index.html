@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vue Bit by Bit 🟢</title>
+
+  <!-- Vue 3 -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+
+  <!-- Bootstrap 5.3 -->
+  <link
+    rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+    integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+    crossorigin="anonymous"
+  />
+
+  <style>
+    /* ── Layout ─────────────────────────────────────────────────── */
+    html, body { height: 100%; margin: 0; overflow: hidden; }
+
+    #app {
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+
+    .vbb-main   { display: flex; flex: 1; overflow: hidden; min-height: 0; }
+    .vbb-content { display: flex; flex-direction: column; flex: 1; overflow: hidden; min-height: 0; }
+    .vbb-tab-body { flex: 1; overflow-y: auto; padding: 1.25rem 1.5rem; min-height: 0; }
+
+    /* ── Sidebar ─────────────────────────────────────────────────── */
+    .vbb-sidebar {
+      width: 240px;
+      flex-shrink: 0;
+      overflow-y: auto;
+      padding: 0.75rem 0.5rem;
+    }
+
+    .lesson-item {
+      cursor: pointer;
+      padding: 0.45rem 0.75rem;
+      border-radius: 6px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: background 0.15s;
+      border-left: 3px solid transparent;
+      margin-bottom: 2px;
+      font-size: 0.88rem;
+      line-height: 1.35;
+    }
+    .lesson-item:hover  { background: rgba(66, 184, 131, 0.12); }
+    .lesson-item.active {
+      background: rgba(66, 184, 131, 0.2);
+      border-left-color: #42b883;
+      font-weight: 600;
+    }
+
+    /* ── Code editor textarea ────────────────────────────────────── */
+    .code-editor {
+      font-family: 'Fira Code', 'Cascadia Code', 'Courier New', Courier, monospace;
+      font-size: 0.8rem;
+      line-height: 1.65;
+      resize: none;
+      width: 100%;
+      min-height: 300px;
+      flex: 1;
+      tab-size: 4;
+    }
+
+    /* ── Diff view ───────────────────────────────────────────────── */
+    .diff-view {
+      font-family: 'Fira Code', 'Cascadia Code', 'Courier New', Courier, monospace;
+      font-size: 0.77rem;
+      line-height: 1.5;
+      overflow-x: auto;
+      max-height: 420px;
+      overflow-y: auto;
+      border-radius: 6px;
+      padding: 0.5rem 0;
+    }
+
+    .diff-line        { white-space: pre; display: block; padding: 0 0.5rem; }
+    .diff-add         { background: #d4edda; color: #155724; }
+    .diff-remove      { background: #f8d7da; color: #721c24; }
+    .diff-same        { color: #6c757d; }
+    .diff-prefix      { display: inline-block; width: 1.2em; user-select: none; font-weight: 700; }
+
+    /* ── Explanation prose ───────────────────────────────────────── */
+    .explanation code {
+      font-family: 'Fira Code', 'Cascadia Code', Consolas, monospace;
+      font-size: 0.83em;
+      background: #f0f0f0;
+      padding: 1px 5px;
+      border-radius: 3px;
+    }
+    .explanation pre {
+      background: #f6f8fa;
+      border: 1px solid #dee2e6;
+      border-radius: 6px;
+      padding: 0.85rem 1rem;
+      font-size: 0.8rem;
+      overflow-x: auto;
+      line-height: 1.6;
+    }
+    .explanation pre code { background: transparent; padding: 0; }
+    .explanation h4 { color: #42b883; margin-top: 1.25rem; margin-bottom: 0.4rem; font-size: 1rem; }
+    .explanation ul, .explanation ol { padding-left: 1.5rem; }
+
+    /* ── Dark mode overrides ─────────────────────────────────────── */
+    [data-bs-theme="dark"] .diff-add    { background: #1b3a27; color: #6fcf97; }
+    [data-bs-theme="dark"] .diff-remove { background: #3a1b1b; color: #eb5757; }
+    [data-bs-theme="dark"] .diff-same   { color: #888; }
+
+    [data-bs-theme="dark"] .lesson-item:hover  { background: rgba(255,255,255,0.07); }
+    [data-bs-theme="dark"] .lesson-item.active { background: rgba(66,184,131,0.2); }
+
+    [data-bs-theme="dark"] .explanation code { background: #2d2d2d; color: #7dd87d; }
+    [data-bs-theme="dark"] .explanation pre  { background: #1e1e2e; border-color: #444; color: #cdd6f4; }
+
+    [data-bs-theme="dark"] .code-editor {
+      background: #1e1e2e !important;
+      color: #cdd6f4 !important;
+      border-color: #444 !important;
+    }
+
+    /* ── Misc helpers ────────────────────────────────────────────── */
+    .brand-green { color: #42b883; }
+    kbd { font-size: 0.72em; }
+
+    /* Responsive: collapse sidebar below md */
+    @media (max-width: 767px) {
+      .vbb-sidebar { width: 180px; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="app" :data-bs-theme="darkMode ? 'dark' : 'light'">
+
+  <!-- ── TOP NAVBAR ─────────────────────────────────────────────── -->
+  <nav
+    class="navbar px-3 py-2 border-bottom flex-shrink-0"
+    :class="darkMode ? 'navbar-dark bg-dark border-secondary' : 'navbar-light bg-white'"
+  >
+    <span class="navbar-brand mb-0 fw-bold fs-5 brand-green">🟢 Vue Bit by Bit</span>
+
+    <div class="d-flex align-items-center gap-3 ms-auto">
+      <!-- Progress indicator -->
+      <div class="d-flex align-items-center gap-2">
+        <small :class="darkMode ? 'text-light' : 'text-muted'">
+          {{ completedLessons.length }}/{{ lessons.length }} lessons
+        </small>
+        <div class="progress rounded-pill" style="width:110px;height:7px;" title="Overall progress">
+          <div
+            class="progress-bar bg-success"
+            role="progressbar"
+            :style="{ width: progressPct + '%' }"
+            :aria-valuenow="progressPct"
+            aria-valuemin="0"
+            aria-valuemax="100"
+          ></div>
+        </div>
+      </div>
+
+      <!-- Theme toggle -->
+      <button
+        class="btn btn-sm"
+        :class="darkMode ? 'btn-outline-light' : 'btn-outline-secondary'"
+        @click="toggleTheme"
+        :title="darkMode ? 'Switch to light mode' : 'Switch to dark mode'"
+      >{{ darkMode ? '☀️' : '🌙' }}</button>
+    </div>
+  </nav>
+
+  <!-- ── MAIN ───────────────────────────────────────────────────── -->
+  <div class="vbb-main">
+
+    <!-- ── SIDEBAR ──────────────────────────────────────────────── -->
+    <div
+      class="vbb-sidebar border-end"
+      :class="darkMode ? 'bg-dark border-secondary' : 'bg-light'"
+    >
+      <p
+        class="text-uppercase fw-semibold px-2 mb-2"
+        style="font-size:0.68rem;letter-spacing:0.06em;"
+        :class="darkMode ? 'text-secondary' : 'text-muted'"
+      >Lessons</p>
+
+      <div
+        v-for="(lesson, index) in lessons"
+        :key="lesson.id"
+        class="lesson-item"
+        :class="{ active: activeLesson === index }"
+        :title="lesson.subtitle"
+        @click="selectLesson(index)"
+      >
+        <span>{{ lesson.icon }} <strong>{{ index + 1 }}.</strong> {{ lesson.title }}</span>
+        <span v-if="isCompleted(lesson.id)" title="Completed">✅</span>
+      </div>
+
+      <hr class="my-3" />
+
+      <!-- Keyboard shortcut hint -->
+      <div class="px-2">
+        <p class="mb-1 fw-semibold" style="font-size:0.7rem;" :class="darkMode ? 'text-secondary' : 'text-muted'">Shortcuts</p>
+        <p class="mb-0" style="font-size:0.7rem;" :class="darkMode ? 'text-secondary' : 'text-muted'">
+          <kbd>Alt</kbd>+<kbd>←</kbd> Previous<br>
+          <kbd>Alt</kbd>+<kbd>→</kbd> Next<br>
+          <kbd>Tab</kbd> Indent in editor
+        </p>
+      </div>
+    </div>
+
+    <!-- ── CONTENT PANEL ────────────────────────────────────────── -->
+    <div class="vbb-content">
+
+      <!-- Lesson header -->
+      <div
+        class="px-4 pt-3 pb-2 border-bottom flex-shrink-0"
+        :class="darkMode ? 'border-secondary' : ''"
+      >
+        <h5 class="mb-0">
+          {{ currentLesson.icon }}
+          Lesson {{ activeLesson + 1 }}:
+          <strong>{{ currentLesson.title }}</strong>
+        </h5>
+        <small :class="darkMode ? 'text-secondary' : 'text-muted'">{{ currentLesson.subtitle }}</small>
+      </div>
+
+      <!-- Tab bar -->
+      <ul
+        class="nav nav-tabs px-4 pt-2 flex-shrink-0"
+        :class="darkMode ? 'border-secondary' : ''"
+      >
+        <li class="nav-item" v-for="tab in TABS" :key="tab.id">
+          <a
+            class="nav-link py-1 px-3"
+            href="#"
+            :class="{ active: activeTab === tab.id }"
+            @click.prevent="activeTab = tab.id"
+          >{{ tab.label }}</a>
+        </li>
+      </ul>
+
+      <!-- ── TAB BODIES ──────────────────────────────────────────── -->
+      <div class="vbb-tab-body">
+
+        <!-- ════════════════════════ LEARN TAB ════════════════════ -->
+        <div v-show="activeTab === 'learn'">
+
+          <!-- Explanation -->
+          <div class="explanation mb-4" v-html="currentLesson.explanation"></div>
+
+          <!-- Key Concepts table -->
+          <h6 class="fw-bold mb-2">💡 Key Concepts</h6>
+          <div class="table-responsive mb-4">
+            <table class="table table-sm table-bordered align-middle" :class="darkMode ? 'table-dark' : ''">
+              <thead class="table-success">
+                <tr>
+                  <th style="width:38%;">Concept / Syntax</th>
+                  <th>What it does</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(c, i) in currentLesson.concepts" :key="i">
+                  <td><code>{{ c.directive }}</code></td>
+                  <td>{{ c.description }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Diff view -->
+          <h6 class="fw-bold mb-2">📊 Code Changes — Before → After</h6>
+          <div
+            class="diff-view border"
+            :class="darkMode ? 'border-secondary bg-dark' : 'border bg-light'"
+            v-html="diffHtml"
+          ></div>
+
+          <!-- CTA -->
+          <div class="mt-4">
+            <button class="btn btn-success" @click="activeTab = 'code'">
+              💻 Start Coding →
+            </button>
+          </div>
+        </div>
+
+        <!-- ════════════════════════ CODE TAB ═════════════════════ -->
+        <div v-show="activeTab === 'code'" style="display:flex;flex-direction:column;gap:0.75rem;height:100%;">
+
+          <!-- Toolbar -->
+          <div class="d-flex flex-wrap gap-2 align-items-center">
+            <button class="btn btn-success btn-sm" @click="runCode">▶️ Run</button>
+            <button
+              class="btn btn-warning btn-sm"
+              @click="showNextHint"
+              :disabled="hintsShown >= currentLesson.hints.length"
+            >
+              💡 Hint
+              <span class="badge text-bg-dark ms-1">{{ hintsShown }}/{{ currentLesson.hints.length }}</span>
+            </button>
+            <button class="btn btn-outline-info btn-sm" @click="showSolution">🔑 Solution</button>
+            <button class="btn btn-outline-secondary btn-sm" @click="resetCode">↩️ Reset</button>
+            <button class="btn btn-outline-secondary btn-sm" @click="copyCode">
+              {{ copied ? '✅ Copied!' : '📋 Copy' }}
+            </button>
+          </div>
+
+          <!-- Hints -->
+          <div v-if="hintsShown > 0">
+            <div
+              v-for="(hint, i) in currentHints"
+              :key="i"
+              class="alert alert-warning py-2 mb-1 small"
+              v-html="'<strong>💡 Hint ' + (i + 1) + ':</strong> ' + hint"
+            ></div>
+          </div>
+
+          <!-- Editor -->
+          <textarea
+            v-model="editorCode"
+            class="code-editor border rounded p-3"
+            :class="darkMode ? 'bg-dark text-light border-secondary' : 'bg-white border'"
+            spellcheck="false"
+            autocomplete="off"
+            autocorrect="off"
+            autocapitalize="off"
+            @keydown.tab.prevent="handleTabKey($event)"
+            aria-label="Code editor"
+          ></textarea>
+
+          <div>
+            <button class="btn btn-success" @click="runCode">▶️ Run &amp; Preview →</button>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════ PREVIEW TAB ═══════════════════ -->
+        <div v-show="activeTab === 'preview'" style="display:flex;flex-direction:column;gap:0.75rem;height:100%;min-height:400px;">
+
+          <div class="d-flex gap-2 align-items-center">
+            <button class="btn btn-success btn-sm" @click="runCode">▶️ Run &amp; Refresh</button>
+            <small v-if="!previewCode" :class="darkMode ? 'text-secondary' : 'text-muted'">
+              Write code in the <strong>Code</strong> tab then click Run.
+            </small>
+          </div>
+
+          <div
+            class="border rounded flex-grow-1 overflow-hidden"
+            :class="darkMode ? 'border-secondary' : ''"
+            style="min-height:300px;"
+          >
+            <!-- Empty state -->
+            <div
+              v-if="!previewCode"
+              class="h-100 d-flex align-items-center justify-content-center"
+              :class="darkMode ? 'text-secondary' : 'text-muted'"
+            >
+              <div class="text-center">
+                <div class="fs-1">👁️</div>
+                <p class="mb-0">Click <strong>▶️ Run</strong> to preview your code here</p>
+              </div>
+            </div>
+
+            <!-- Live preview iframe -->
+            <iframe
+              v-else
+              :srcdoc="previewCode"
+              style="width:100%;height:100%;border:none;"
+              title="Live preview"
+            ></iframe>
+          </div>
+        </div>
+
+        <!-- ════════════════════════ QUIZ TAB ═════════════════════ -->
+        <div v-show="activeTab === 'quiz'">
+
+          <h6 class="fw-bold mb-1">🧠 Knowledge Check</h6>
+          <p class="small mb-4" :class="darkMode ? 'text-secondary' : 'text-muted'">
+            Answer these questions to check your understanding of Lesson {{ activeLesson + 1 }}.
+          </p>
+
+          <!-- Questions -->
+          <div
+            v-for="(q, qi) in currentLesson.quiz"
+            :key="qi"
+            class="card mb-3"
+            :class="darkMode ? 'bg-dark border-secondary' : ''"
+          >
+            <div class="card-body">
+              <p class="fw-semibold mb-3">{{ qi + 1 }}. {{ q.question }}</p>
+              <div v-for="(opt, oi) in q.options" :key="oi" class="form-check mb-2">
+                <input
+                  type="radio"
+                  class="form-check-input"
+                  :id="`q${activeLesson}-${qi}-o${oi}`"
+                  :name="`quiz-l${activeLesson}-q${qi}`"
+                  :value="oi"
+                  v-model="quizAnswers[qi]"
+                  :disabled="quizSubmitted"
+                />
+                <label
+                  class="form-check-label"
+                  :for="`q${activeLesson}-${qi}-o${oi}`"
+                  :class="quizSubmitted
+                    ? oi === q.answer
+                      ? 'text-success fw-bold'
+                      : quizAnswers[qi] === oi
+                        ? 'text-danger text-decoration-line-through'
+                        : ''
+                    : ''"
+                >
+                  {{ opt }}
+                  <span v-if="quizSubmitted && oi === q.answer"> ✓</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Submit -->
+          <div v-if="!quizSubmitted" class="mb-3">
+            <button
+              class="btn btn-primary"
+              @click="submitQuiz"
+              :disabled="quizAnswers.some(a => a === null || a === undefined)"
+            >Submit Answers</button>
+          </div>
+
+          <!-- Result banner -->
+          <div v-if="quizSubmitted">
+            <div class="alert" :class="quizPassed ? 'alert-success' : 'alert-warning'">
+              <strong>{{ quizPassed
+                ? '🎉 Perfect score! All answers correct.'
+                : '💪 Not quite — review the highlighted answers above.' }}</strong>
+              <div class="mt-2 d-flex gap-2 flex-wrap">
+                <button v-if="!quizPassed" class="btn btn-sm btn-outline-secondary" @click="retryQuiz">
+                  🔄 Try Again
+                </button>
+                <button
+                  v-if="quizPassed && !isCompleted(currentLesson.id)"
+                  class="btn btn-sm btn-success"
+                  @click="markComplete"
+                >✅ Mark Lesson Complete</button>
+                <span
+                  v-if="quizPassed && isCompleted(currentLesson.id)"
+                  class="badge text-bg-success py-2 px-3"
+                >✅ Lesson Completed</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+        <!-- end quiz tab -->
+
+      </div>
+      <!-- end .vbb-tab-body -->
+
+      <!-- ── BOTTOM NAV BAR ──────────────────────────────────────── -->
+      <div
+        class="px-4 py-2 border-top d-flex justify-content-between align-items-center flex-shrink-0"
+        :class="darkMode ? 'border-secondary' : ''"
+      >
+        <button
+          class="btn btn-outline-secondary btn-sm"
+          @click="prevLesson"
+          :disabled="activeLesson === 0"
+        >← Previous</button>
+
+        <div class="d-flex gap-2 align-items-center">
+          <small :class="darkMode ? 'text-secondary' : 'text-muted'">
+            {{ activeLesson + 1 }} / {{ lessons.length }}
+          </small>
+          <button
+            v-if="!isCompleted(currentLesson.id)"
+            class="btn btn-outline-success btn-sm"
+            @click="markComplete"
+          >✅ Mark Complete</button>
+          <span v-else class="badge text-bg-success">✅ Done</span>
+        </div>
+
+        <button
+          class="btn btn-outline-primary btn-sm"
+          @click="nextLesson"
+          :disabled="activeLesson === lessons.length - 1"
+        >Next →</button>
+      </div>
+
+    </div>
+    <!-- end .vbb-content -->
+
+  </div>
+  <!-- end .vbb-main -->
+
+</div>
+<!-- end #app -->
+
+<!-- Lesson data -->
+<script src="lessons.js"></script>
+
+<script>
+  // ── Utility: HTML escape ───────────────────────────────────────
+  function htmlEscape(str) {
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  // ── Utility: LCS-based line diff ──────────────────────────────
+  // Returns array of { type: 'add'|'remove'|'same', line: string }
+  function computeDiff(before, after) {
+    const a = (before || '').split('\n');
+    const b = (after  || '').split('\n');
+    const m = a.length, n = b.length;
+
+    // Build LCS length table
+    const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+    for (let i = 1; i <= m; i++) {
+      for (let j = 1; j <= n; j++) {
+        dp[i][j] = a[i - 1] === b[j - 1]
+          ? dp[i - 1][j - 1] + 1
+          : Math.max(dp[i - 1][j], dp[i][j - 1]);
+      }
+    }
+
+    // Backtrack to build diff
+    const result = [];
+    let i = m, j = n;
+    while (i > 0 || j > 0) {
+      if (i > 0 && j > 0 && a[i - 1] === b[j - 1]) {
+        result.unshift({ type: 'same',   line: a[i - 1] }); i--; j--;
+      } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+        result.unshift({ type: 'add',    line: b[j - 1] }); j--;
+      } else {
+        result.unshift({ type: 'remove', line: a[i - 1] }); i--;
+      }
+    }
+    return result;
+  }
+
+  // ── Vue App ───────────────────────────────────────────────────
+  const { createApp } = Vue;
+
+  createApp({
+    data() {
+      const saved = JSON.parse(localStorage.getItem('vbb-completed') || '[]');
+      return {
+        lessons:          LESSONS,
+        activeLesson:     0,
+        activeTab:        'learn',
+        editorCode:       '',
+        previewCode:      '',
+        hintsShown:       0,
+        completedLessons: saved,
+        darkMode:         localStorage.getItem('vbb-dark') === 'true',
+        quizAnswers:      [],
+        quizSubmitted:    false,
+        copied:           false,
+        TABS: [
+          { id: 'learn',   label: '📖 Learn'   },
+          { id: 'code',    label: '💻 Code'    },
+          { id: 'preview', label: '👁️ Preview' },
+          { id: 'quiz',    label: '🧠 Quiz'    }
+        ]
+      };
+    },
+
+    computed: {
+      currentLesson() {
+        return this.lessons[this.activeLesson];
+      },
+
+      progressPct() {
+        return Math.round((this.completedLessons.length / this.lessons.length) * 100);
+      },
+
+      diffHtml() {
+        const lesson = this.currentLesson;
+        const diff   = computeDiff(lesson.startingCode, lesson.solutionCode);
+        return diff.map(d => {
+          const cls    = d.type === 'add' ? 'diff-add' : d.type === 'remove' ? 'diff-remove' : 'diff-same';
+          const prefix = d.type === 'add' ? '+' : d.type === 'remove' ? '-' : ' ';
+          return `<span class="diff-line ${cls}"><span class="diff-prefix">${prefix}</span>${htmlEscape(d.line)}</span>`;
+        }).join('');
+      },
+
+      currentHints() {
+        return this.currentLesson.hints.slice(0, this.hintsShown);
+      },
+
+      quizPassed() {
+        if (!this.quizSubmitted) return false;
+        return this.currentLesson.quiz.every((q, i) => this.quizAnswers[i] === q.answer);
+      }
+    },
+
+    methods: {
+      // ── Lesson navigation ──────────────────────────────────────
+      selectLesson(index) {
+        this.activeLesson  = index;
+        this.activeTab     = 'learn';
+        this.editorCode    = this.lessons[index].startingCode;
+        this.previewCode   = '';
+        this.hintsShown    = 0;
+        this.quizAnswers   = new Array(this.lessons[index].quiz.length).fill(null);
+        this.quizSubmitted = false;
+        window.location.hash = `lesson-${index + 1}`;
+      },
+
+      prevLesson() {
+        if (this.activeLesson > 0) this.selectLesson(this.activeLesson - 1);
+      },
+
+      nextLesson() {
+        if (this.activeLesson < this.lessons.length - 1) this.selectLesson(this.activeLesson + 1);
+      },
+
+      // ── Code editor actions ────────────────────────────────────
+      runCode() {
+        this.previewCode = this.editorCode;
+        this.activeTab   = 'preview';
+      },
+
+      showNextHint() {
+        if (this.hintsShown < this.currentLesson.hints.length) this.hintsShown++;
+      },
+
+      showSolution() {
+        if (confirm('Show the full solution? Try hints first! 😊')) {
+          this.editorCode = this.currentLesson.solutionCode;
+        }
+      },
+
+      resetCode() {
+        this.editorCode  = this.currentLesson.startingCode;
+        this.hintsShown  = 0;
+        this.previewCode = '';
+      },
+
+      async copyCode() {
+        try {
+          await navigator.clipboard.writeText(this.editorCode);
+          this.copied = true;
+          setTimeout(() => { this.copied = false; }, 2000);
+        } catch {
+          // Clipboard API unavailable (e.g. file:// without permissions)
+        }
+      },
+
+      // ── Tab key → indent in editor ────────────────────────────
+      handleTabKey(e) {
+        const ta    = e.target;
+        const start = ta.selectionStart;
+        const end   = ta.selectionEnd;
+        this.editorCode = this.editorCode.substring(0, start) + '    ' + this.editorCode.substring(end);
+        this.$nextTick(() => { ta.selectionStart = ta.selectionEnd = start + 4; });
+      },
+
+      // ── Progress ───────────────────────────────────────────────
+      markComplete() {
+        const id = this.currentLesson.id;
+        if (!this.completedLessons.includes(id)) {
+          this.completedLessons.push(id);
+          localStorage.setItem('vbb-completed', JSON.stringify(this.completedLessons));
+        }
+      },
+
+      isCompleted(id) {
+        return this.completedLessons.includes(id);
+      },
+
+      // ── Theme ──────────────────────────────────────────────────
+      toggleTheme() {
+        this.darkMode = !this.darkMode;
+        localStorage.setItem('vbb-dark', this.darkMode);
+      },
+
+      // ── Quiz ───────────────────────────────────────────────────
+      submitQuiz() {
+        this.quizSubmitted = true;
+      },
+
+      retryQuiz() {
+        this.quizAnswers   = new Array(this.currentLesson.quiz.length).fill(null);
+        this.quizSubmitted = false;
+      },
+
+      // ── Keyboard shortcuts ─────────────────────────────────────
+      handleKeydown(e) {
+        if (e.altKey && e.key === 'ArrowRight') this.nextLesson();
+        if (e.altKey && e.key === 'ArrowLeft')  this.prevLesson();
+      }
+    },
+
+    mounted() {
+      // Keyboard shortcut listener
+      this._keydownHandler = this.handleKeydown.bind(this);
+      window.addEventListener('keydown', this._keydownHandler);
+
+      // Deep-link via URL hash: #lesson-3 opens lesson 3
+      const match = window.location.hash.match(/^#lesson-(\d+)$/);
+      const idx   = match ? parseInt(match[1], 10) - 1 : 0;
+      this.selectLesson(idx >= 0 && idx < this.lessons.length ? idx : 0);
+
+      // Keep hash in sync when user navigates with browser back/forward
+      window.addEventListener('hashchange', () => {
+        const m = window.location.hash.match(/^#lesson-(\d+)$/);
+        if (m) {
+          const i = parseInt(m[1], 10) - 1;
+          if (i !== this.activeLesson && i >= 0 && i < this.lessons.length) {
+            this.selectLesson(i);
+          }
+        }
+      });
+    },
+
+    beforeUnmount() {
+      window.removeEventListener('keydown', this._keydownHandler);
+    }
+
+  }).mount('#app');
+</script>
+
+</body>
+</html>
